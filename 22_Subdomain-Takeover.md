@@ -1,0 +1,529 @@
+## Overview
+
+**Subdomain takeover** is a vulnerability that occurs when a subdomain (or even top-level domain) points to an external service (via CNAME or A record) that is no longer active or claimed. An attacker can register or claim that service and gain control over the subdomain, effectively hijacking it.
+
+### How It Works
+
+1. **DNS Resolution**: When a web address like `www.xyz.com` is accessed, a DNS query resolves the hostname to an IP address or another domain (via CNAME).
+    
+2. **CNAME Records**: Subdomains often use CNAME records to point to third-party services (e.g., `sub.company.com CNAME sub.cloudservice.com`).
+    
+3. **The Vulnerability**: If a company stops using the third-party service but forgets to remove the DNS record, anyone can claim `sub.cloudservice.com` and gain control over `sub.company.com`.
+    
+
+### Types of Takeovers
+
+- **Domain Takeover**: The company loses ownership of an entire domain (domain.tld) that's still being used by services.
+- **Subdomain Takeover**: A subdomain points to a third-party service with an unclaimed name.
+- **Wildcard DNS Takeover**: Wildcarded DNS entries (e.g., `*.testing.com`) pointing to third-party services can allow attackers to create arbitrary subdomains.
+- **NS Record Takeover**: Control over nameserver records can redirect portions of traffic.
+- **MX Record Takeover**: Manipulating mail exchange records to receive/send emails from legitimate subdomains.
+
+---
+
+## Exploitation Methods
+
+### Method 1: Manual DNS Reconnaissance
+
+**Step-by-step process:**
+
+1. **Enumerate subdomains** of the target:
+
+```bash
+subfinder -d target.com | tee -a domains.txt
+```
+
+2. **Query DNS records** for all subdomains:
+
+```bash
+cat domains.txt | while read domain; do dig $domain; done | tee -a digs.txt
+```
+
+3. **Extract CNAME entries**:
+
+```bash
+cat digs.txt | grep CNAME
+```
+
+4. **Identify vulnerable targets**: Look for subdomains pointing to third-party services (e.g., `sub.example.com CNAME x.aws.com`).
+    
+5. **Check if the main subdomain is down**: Visit the subdomain and check for error messages like:
+    
+    - "Error the request could not be satisfied" (CloudFront)
+    - "Sorry this shop is unavailable" (Shopify)
+    - "There isn't a GitHub Pages site here" (GitHub)
+    - "No such app" (Heroku)
+6. **Claim the service**: Register the domain at the host provider where it's pointing.
+    
+
+### Method 2: Automated Scanning
+
+**Step-by-step process:**
+
+1. **Collect all subdomains** using multiple tools:
+
+```bash
+assetfinder -subs-only target.com > subs.txt
+subfinder -d target.com >> subs.txt
+# Optional: Use chaos with API key
+chaos -d target.com >> subs.txt
+```
+
+2. **Remove duplicates**:
+
+```bash
+cat subs.txt | sort -u | tee -a resolved.txt
+```
+
+3. **Scan with subdomain takeover tools**:
+
+```bash
+# Using Subzy
+subzy -targets resolved.txt
+
+# Using Subjack
+subjack -w resolved.txt -t 100 -timeout 30 -o results.txt -ssl
+
+# Using SubOver
+SubOver -l resolved.txt
+```
+
+4. **Alternative: Use Nuclei templates**:
+
+```bash
+# First, filter live hosts
+cat resolved.txt | httpx | tee -a hosts.txt
+
+# Scan with Nuclei
+cat hosts.txt | nuclei -t nuclei-templates/vulnerabilities -o nuclei.txt -v
+```
+
+### Method 3: Top-Level Domain Takeover (Shopify Example)
+
+**Real-world POC:**
+
+1. **Discover the target**: Find `www.target.com`
+    
+2. **Check DNS records**:
+    
+
+```bash
+host www.target.com
+```
+
+3. **Identify the service**: If the A record points to `23.227.38.65` (Shopify IP), verify with:
+
+```bash
+whois 23.227.38.65
+```
+
+4. **Check for takeover indicators**: Visit the website and look for:
+    
+    - "Only one step left to finish setting"
+    - "Sorry this shop is unavailable"
+5. **Claim the domain**:
+    
+    - Sign up for Shopify trial account
+    - Create a shop with the target domain name
+    - Go to Settings → Connect your domain
+    - Choose "connect your domain automatically"
+    - Enter `www.target.com`
+    - Domain successfully connected = takeover complete
+
+### Method 4: CNAME Available to Buy
+
+**Scenario**: The CNAME that a subdomain points to is available for purchase as a domain.
+
+**Process:**
+
+1. Find subdomain with CNAME: `sub.company.com CNAME old-service.com`
+2. Check if `old-service.com` is available to register
+3. Purchase the domain
+4. Host your content on the purchased domain
+5. Control `sub.company.com` through DNS propagation
+
+### Method 5: Wildcard DNS Exploitation
+
+**Scenario**: DNS wildcard `*.testing.com` points to third-party service via CNAME (e.g., `sohomdatta1.github.io`).
+
+**Process:**
+
+1. Identify wildcard DNS entry pointing to third-party service
+2. Create your own page on the third-party platform
+3. Configure it to respond to the victim's subdomain
+4. Generate arbitrary subdomains under victim's domain
+
+---
+
+## Checks and Verification
+
+### Common Error Messages by Service
+
+Check for these indicators when visiting suspected vulnerable subdomains:
+
+**CloudFront:**
+
+- "Error the request could not be satisfied, generated by CloudFront"
+
+**Heroku:**
+
+- "No such app"
+- "There's nothing here, yet."
+
+**GitHub Pages:**
+
+- "There isn't a GitHub Pages site here"
+- "404 - File not found"
+
+**Shopify:**
+
+- "Sorry, this shop is currently unavailable"
+- "Only one step left to finish setting"
+
+**AWS S3:**
+
+- "NoSuchBucket"
+- "The specified bucket does not exist"
+
+**Azure:**
+
+- "404 - Web app not found"
+
+**Bitbucket:**
+
+- "Repository not found"
+
+**Fastly:**
+
+- "Fastly error: unknown domain"
+
+**Tumblr:**
+
+- "Whatever you were looking for doesn't currently exist at this address"
+
+---
+
+## Tools and Resources
+
+### Enumeration Tools
+
+- [Assetfinder](https://github.com/tomnomnom/assetfinder)
+- [Subfinder](https://github.com/projectdiscovery/subfinder)
+- [Findomain](https://github.com/Edu4rdShlindomain)
+
+### Takeover Detection Tools
+
+- [can-i-take-over-xyz](https://github.com/EdOverflow/can-i-take-over-xyz) - Service-specific takeover guide
+- [BBOT](https://github.com/blacklanternsecurity/bbot)
+- [dnsReaper](https://github.com/punk-security/dnsReaper)
+- [Subjack](https://github.com/haccer/subjack)
+- [tko-subs](https://github.com/anshumanbh/tko-subs)
+- [sub-domain-takeover](https://github.com/ArifulProtik/sub-domain-takeover)
+- [Subdomain-Takeover](https://github.com/SaadAhmedx/Subdomain-Takeover)
+- [SubOver](https://github.com/Ice3man543/SubOver)
+- [subdomain-takeover](https://github.com/antichown/subdomain-takeover)
+- [mx-takeover](https://github.com/musana/mx-takeover)
+- [subzy](https://github.com/PentestPad/subzy)
+- [Subdominator](https://github.com/Stratus-Security/Subdominator)
+- [takeit](https://github.com/NImaism/takeit)
+- [Aquatone](https://github.com/michenriksen/aquatone)
+
+### Scanning Frameworks
+
+- [Nuclei](https://github.com/projectdiscovery/nuclei)
+- [Nuclei Templates](https://github.com/projectdiscovery/nuclei-templates)
+- [httpx](https://github.com/projectdiscovery/httpx)
+
+### Service Providers Commonly Vulnerable
+
+- Heroku
+- GitHub Pages
+- Bitbucket
+- Squarespace
+- Shopify
+- Desk
+- Teamwork
+- Unbounce
+- Helpjuice
+- HelpScout
+- Pingdom
+- Tictail
+- Campaign Monitor
+- CargoCollective
+- StatusPage.io
+- Tumblr
+- AWS (S3, CloudFront, Elastic Beanstalk)
+- Azure
+- Fastly
+
+---
+
+## Higher Impact Scenarios
+
+### 1. Cookie Theft and Session Hijacking
+
+**Impact**: Subdomain takeover allows attackers to gather session cookies from users visiting the compromised subdomain.
+
+**Mechanism**:
+
+- Browser transparency extends to cookie security (Same-origin policy)
+- Cookies set for `*.company.com` are accessible from any subdomain
+- Attacker hosts malicious JavaScript to steal cookies
+
+### 2. CORS Bypass
+
+**Impact**: Access sensitive information from the main domain or other subdomains.
+
+**Mechanism**:
+
+- If every subdomain is allowed to access CORS resources
+- Attacker-controlled subdomain can make authenticated requests
+- Sensitive data exfiltration via CORS requests
+
+### 3. CSRF - Same-Site Cookie Bypass
+
+**Impact**: Perform actions on behalf of authenticated users.
+
+**Mechanism**:
+
+- Compromised subdomain bypasses `SameSite` cookie protection
+- Can send cookies to domain or other subdomains
+- **Note**: Anti-CSRF tokens still provide protection if properly implemented
+
+### 4. OAuth Token Theft
+
+**Impact**: Steal OAuth tokens during authentication flows.
+
+**Mechanism**:
+
+- Compromised subdomain allowed in `redirect_uri` parameter
+- Attacker intercepts OAuth tokens/codes
+- Full account takeover possible
+
+### 5. CSP Bypass
+
+**Impact**: Inject malicious scripts and exploit XSS vulnerabilities.
+
+**Mechanism**:
+
+- Compromised subdomain allowed in `script-src` directive
+- Attacker hosts malicious JavaScript
+- Bypasses Content Security Policy protections
+
+### 6. Phishing Attacks
+
+**Impact**: Highly convincing phishing campaigns using legitimate domains.
+
+**Mechanism**:
+
+- **SSL Certificates**: Attackers can generate valid SSL certs via Let's Encrypt
+- **Email Legitimacy**: Phishing emails with legitimate domain bypass spam filters
+- **Typosquatting**: Create similar-looking subdomains
+- **Doppelganger Domains**: Exploit user trust in the main domain
+
+### 7. Email Manipulation via MX Records
+
+**Impact**: Receive or send emails from legitimate subdomain.
+
+**Mechanism**:
+
+- Control over MX records
+- Intercept sensitive communications
+- Send authenticated phishing emails
+
+### 8. NS Record Takeover
+
+**Impact**: Redirect portions of traffic to attacker-controlled servers.
+
+**Mechanism**:
+
+- Gain control over one NS record
+- Set high TTL (Time to Live) to prolong attack
+- Persistent traffic redirection
+
+### 9. Complete Domain Cloning
+
+**Impact**: Destroy business credibility and steal credentials.
+
+**Mechanism**:
+
+- Build complete clone of legitimate site
+- Add login forms to steal admin credentials
+- Harvest user data and payment information
+- Complete brand impersonation
+
+### 10. Wildcard SSL Inheritance
+
+**Impact**: Attacker inherits the Domain Owner's wildcard SSL certificate.
+
+**Mechanism**:
+
+- Domain owner points `*` (wildcard) DNS to service (e.g., Heroku)
+- Forgets to add wildcard entry to service provider
+- Attacker claims any subdomain
+- Inherits SSL trust from legitimate certificate
+
+---
+
+## Bypasses
+
+### 1. Wildcard CNAME Exploitation
+
+**Bypass**: Even with proper subdomain management, wildcard CNAMEs create persistent vulnerabilities.
+
+**Technique**:
+
+- If `*.testing.com` is wildcarded to `attacker.github.io`
+- Create GitHub page
+- Claim `anything.testing.com` by configuring custom domain
+- Wildcard agreement allows arbitrary subdomain generation
+
+### 2. Long TTL Persistence
+
+**Bypass**: Attackers set high TTL values to maintain control even after remediation attempts.
+
+**Technique**:
+
+- Set TTL to maximum allowed (e.g., 86400 seconds / 24 hours)
+- DNS cache persists attacker's records
+- Delays detection and remediation
+
+### 3. Multiple Service Provider Chains
+
+**Bypass**: Chain multiple CNAME records to obfuscate the takeover.
+
+**Technique**:
+
+```
+sub.company.com → CNAME → intermediary.service1.com → CNAME → final.service2.com
+```
+
+- Claim `final.service2.com`
+- Harder to detect in DNS audits
+
+---
+
+## Mitigation Strategies
+
+### 1. Remove Vulnerable DNS Records
+
+**Action**: Delete DNS entries for subdomains no longer in use.
+
+**Implementation**:
+
+- Regular DNS audits
+- Document all external service dependencies
+- Remove CNAME/A records when services are decommissioned
+
+### 2. Claim Domain Names
+
+**Action**: Register the resource with the cloud provider or repurchase expired domains.
+
+**Implementation**:
+
+- Monitor expiring domains
+- Maintain active subscriptions for all claimed services
+- Register placeholder pages on services before DNS configuration
+
+### 3. Proper Resource Lifecycle Management
+
+**Best Practice**: DNS record creation should be the **last step** in resource creation and the **first step** in resource destruction.
+
+**Implementation**:
+
+```
+Creation Order:
+1. Provision third-party service
+2. Configure service completely
+3. Add DNS record
+
+Destruction Order:
+1. Remove DNS record
+2. Wait for TTL expiration
+3. Decommission service
+```
+
+### 4. Domain Ownership Verification
+
+**Cloud Provider Responsibility**: Implement domain verification before allowing custom domains.
+
+**Examples**:
+
+- GitLab implemented domain verification mechanisms
+- Require TXT record verification
+- Email verification for domain ownership
+
+### 5. Regular Monitoring and Scanning
+
+**Action**: Continuously monitor for subdomain takeover vulnerabilities.
+
+**Tools**:
+
+- [Aquatone](https://github.com/michenriksen/aquatone)
+- Automated scans with Subjack, SubOver, Nuclei
+- Set up alerts for DNS changes
+
+### 6. Wildcard DNS Management
+
+**Action**: Properly configure wildcard DNS entries.
+
+**For Heroku**:
+
+```bash
+heroku domains:add *.example.com
+```
+
+**General**: Ensure wildcard entries are fully claimed on external services.
+
+### 7. Security Headers and Policies
+
+**Action**: Implement restrictive security policies.
+
+**Implementation**:
+
+- **CSP**: Whitelist specific subdomains, not wildcards
+- **CORS**: Avoid wildcard (`*`) origins, specify exact subdomains
+- **Cookie Security**: Use `__Host-` prefix for sensitive cookies
+
+### 8. DNS CAA Records
+
+**Action**: Use Certification Authority Authorization records.
+
+**Implementation**:
+
+```
+example.com. CAA 0 issue "letsencrypt.org"
+example.com. CAA 0 issuewild ";"
+```
+
+- Prevent unauthorized SSL certificate issuance
+- Block wildcard certificates from untrusted CAs
+
+---
+
+## Real-World Reports (HackerOne)
+
+### Resolved Reports
+
+- [subdomain takeover at news-static.semrush.com](https://hackerone.com/reports/294201)
+- [Subdomain takeover of resources.hackerone.com](https://hackerone.com/reports/863551)
+- [Subdomain takeover at info.hacker.one](https://hackerone.com/reports/202767)
+- [Bulgaria - Subdomain takeover of mail.starbucks.bg](https://hackerone.com/reports/736863)
+- [Remote code execution by hijacking an unclaimed S3 bucket in Rocket.Chat's installation script](https://hackerone.com/reports/399166)
+- [Possible SOP bypass in www.starbucks.com due to insecure crossdomain.xml](https://hackerone.com/reports/244504)
+
+---
+
+## References
+
+- [Detectify - Hostile Subdomain Takeover](https://labs.detectify.com/2014/10/21/hostile-subdomain-takeover-using-herokugithubdesk-more/)
+- [0xpatrik - Subdomain Takeover Guide](https://0xpatrik.com/subdomain-takeover/)
+- [0xpatrik - Finding Candidates](https://0xpatrik.com/subdomain-takeover-candidates/)
+- [0xpatrik - Proof Creation for Bug Bounties](https://0xpatrik.com/takeover-proofs/)
+- [Zsec Blog](https://blog.zsec.uk/subdomainhijack/)
+- [Stratus Security Guide](https://www.stratussecurity.com/post/subdomain-takeover-guide)
+- [HackerOne Guide](https://www.hackerone.com/blog/guide-subdomain-takeovers-20)
+- [GitLab Domain Verification](https://about.gitlab.com/2018/02/05/gitlab-pages-custom-domain-validation/)
+- [CTF Writeup - Wildcard DNS](https://ctf.zeyu2001.com/2022/nitectf-2022/undocumented-js-api)
+- [NULL/OWASP Bangalore Talk (June 2020)](https://www.youtube.com/watch?v=xCunHBH8ZQ4)
+- [Medium - How we Hijacked 26+ Subdomains](https://medium.com/@aishwaryakendle/how-we-hijacked-26-subdomains-9c05c94c7049)
