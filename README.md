@@ -4,6 +4,12 @@ Hi, I'm Ibrahim Beta
 بفضل الله وتوفيقه
 I created this repo with all love to myself, but now it's free to everyone as i collected the content from other repoes i will share the repoes' names here.
 
+## Best practice
+- You have Testing Checklist, Recon Checklist, and Notes Tempaltes. Go through the checklist (beside the cheatsheets are numbered based-on the checklist too).
+- You can manage both main checklist and recon checklist so they are interfered. this is the best workflow.
+- Taking notes are easy too with the notes tamplate you can go.
+- For each Target you have copy those file into its dirctory and complete checks and HUNT!
+
 # Sources (they are forks, you can navigate to the original!)
 | Repository Name | Link |
 |----------------|------|
@@ -18,6 +24,7 @@ I created this repo with all love to myself, but now it's free to everyone as i 
 | The-Hacker-Recipes | https://github.com/beta0x01/The-Hacker-Recipes |
 
 I hope you find your next valid bug.
+
 
 # Contributions
 We are open to all contributions (pull requests)
