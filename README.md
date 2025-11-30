@@ -1,8 +1,7 @@
-# Ultimate Bug Bounty Cheatsheet (UBBC)
-
+# The Web Application Vulnerabilities (Bug Bounty) Cheatsheet [WAVC]
 Hi, I'm Ibrahim Beta
 بفضل الله وتوفيقه
-I created this repo with all love to myself, but now it's free to everyone as i collected the content from other repoes i will share the repoes' names here.
+I created this repo for every Bug-Bounty Hunter / Pentester, I collected the content from other repoes, i will share the repoes' names here.
 
 ## Best practice
 - You have Testing Checklist, Recon Checklist, and Notes Tempaltes. Go through the checklist (beside the cheatsheets are numbered based-on the checklist too).
